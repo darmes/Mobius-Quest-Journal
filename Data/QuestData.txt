@@ -1,0 +1,53 @@
+Main Quest
+
+You're off on a new adventure!
+
+You realized you have no idea what you're doing. So you've set about
+seeking a trainer.
+
+You found someone willing to train you, but unfortunately you don't
+have the money to pay him. You'll need to seek out some job opportunities.
+
+You got a job hunting rats. It's not glamorous, but it'll have to do.
+
+mobius_quest_break
+
+Treasure Hunt
+
+You have collected one of seven plot objects.
+
+You have collected two of seven plot objects.
+
+You have collected three of seven plot objects.
+
+You have collected four of seven plot objects.
+
+You have collected five of seven plot objects.
+
+You have collected six of seven plot objects.
+
+You have collected seven of seven plot objects.
+
+mobius_quest_break
+
+Yellow Cake
+
+A man named Simon asked you to get some yellow cake for him
+for his daughter's birthday. He told you the bakery
+in Hafsgar has the best cakes.
+
+You purchased a yellow cake for Simon.
+
+mobius_quest_break
+
+Generic Quest Name
+
+Phase 0 info goes here. Whatever the player would have in their
+journal immediately after learning about the quest. Note that
+there's a blank line above and below this.
+
+Phase 1 info goes here. This can continue for as many phases as you'd like.
+Just make sure that after the last phase. You use the special
+separator like below
+
+mobius_quest_break

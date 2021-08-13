@@ -1,0 +1,491 @@
+#==============================================================================
+# ** Game Quest -- Mobius
+#------------------------------------------------------------------------------
+#  The class that holds quests. Each instance of Game Quest is used to hold
+#  one quest.
+#==============================================================================
+
+class Game_Quest
+  #--------------------------------------------------------------------------
+  # * Class Variables
+  #--------------------------------------------------------------------------
+    @@total_quests = 0           # Used to track number of quest objects
+
+  #--------------------------------------------------------------------------
+  # * Public Instance Variables
+  #--------------------------------------------------------------------------
+    attr_reader   :id            # ID
+    attr_reader   :name          # Name
+    attr_accessor :phase         # Phase
+    attr_reader   :known         # Known status (true / false)
+    attr_reader   :completed     # Completed status (true / false)
+  #--------------------------------------------------------------------------
+  # * Object Initialization
+  #--------------------------------------------------------------------------
+  def initialize(name, info_array)
+    @id = @@total_quests
+    @@total_quests += 1
+    @name = name
+    @phase = 0
+    @known = false
+    @completed = false
+    # The info array contains text that corresponds to the current phase
+    # of the quest. So, you simply need to get the info in the i-th position
+    # of the array for the i-th phase
+    @info_array = info_array
+  end
+  #--------------------------------------------------------------------------
+  # * Get Current Info
+  # Returns text info for the current phase
+  #--------------------------------------------------------------------------
+  def get_current_info
+    @info_array[@phase]
+  end
+  #--------------------------------------------------------------------------
+  # * Discover
+  # Changes quest state known to true 
+  #--------------------------------------------------------------------------
+  def discover
+    @known = true
+  end
+  #--------------------------------------------------------------------------
+  # * Complete
+  # Changes quest state completed to true 
+  #--------------------------------------------------------------------------
+  def complete
+    @completed = true
+  end
+  #--------------------------------------------------------------------------
+  # * to_s
+  # Returns quest object data as string
+  # Mostly used for debugging purposes
+  #--------------------------------------------------------------------------
+  def to_s
+    "Quest ID: #{@id}\n" +
+    "Quest Name: #{@name}\n" +
+    "Quest Info:\n" +
+    @info_array.join("\n")
+  end
+  
+end
+
+#==============================================================================
+# ** Game_Quests
+#------------------------------------------------------------------------------
+#  This class handles the Game Quest arrays. Refer to "$game_quests" for the
+#  instance of this class.
+#==============================================================================
+
+class Game_Quests
+  #--------------------------------------------------------------------------
+  # * Class constants
+  #--------------------------------------------------------------------------
+    CREATE_ENCRYPTED = false              # Determines encrypted file creation
+    USE_ENCRYPTED = false                 # Sets use of encrypted file
+    QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
+  
+  #--------------------------------------------------------------------------
+  # * Public Instance Variables
+  #--------------------------------------------------------------------------
+    attr_accessor :all_quests           # Array of all quest objects
+    attr_accessor :current_quests       # Array of all current quest objects
+    attr_accessor :completed_quests     # Array of all completed quest objects
+  #--------------------------------------------------------------------------
+  # * Object Initialization
+  #--------------------------------------------------------------------------
+  def initialize
+    @all_quests = []
+    @current_quests = []
+    @completed_quests = []
+    setup
+  end
+  #--------------------------------------------------------------------------
+  # * Add Quest - adds a quest object to the all_quests array
+  #--------------------------------------------------------------------------
+  def add_quest(quest)
+    @all_quests.push(quest)
+  end
+  #--------------------------------------------------------------------------
+  # * Sort Quests
+  # Refreshes the current_quests and completed_quests arrays
+  # Also sorts them as well as the all quests array by ID's
+  #--------------------------------------------------------------------------
+  def sort_quests
+    # Sort the all_quests array by ID
+    @all_quests.sort {|a,b| a.id <=> b.id }
+    # Reset the current and completed quest arrays
+    @current_quests = []
+    @completed_quests = []
+    # Push known and completed quests to their appropiate arrays
+    for quest in @all_quests
+      if quest.known and quest.completed
+        @completed_quests.push(quest)
+      elsif quest.known
+        @current_quests.push(quest)
+      end
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Discover Quest - uses quest name or id to change state of quest to known
+  #--------------------------------------------------------------------------
+  def discover_quest(name_or_id)
+    # Check if passed value is ID
+    if name_or_id.is_a?(Integer)
+      # Set quest to known
+      @all_quests[name_or_id].discover
+    else
+      # Look up quest using name
+      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
+      # Set quest to known
+      quest_to_change.discover
+    end
+    sort_quests
+  end
+  # Create shorthand name for eventing scripts
+  alias dq discover_quest
+  #--------------------------------------------------------------------------
+  # * Set Phase - uses quest name or id to change phase
+  #--------------------------------------------------------------------------
+  def set_phase(name_or_id, phase)
+    # Check if passed value is ID
+    if name_or_id.is_a?(Integer)
+      # Set quest to known
+      @all_quests[name_or_id].phase = phase
+    else
+      # Look up quest using name
+      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
+      # Set quest to known
+      quest_to_change.phase = phase
+    end
+    sort_quests
+  end
+  # Create shorthand name for eventing scripts
+  alias sp set_phase
+  #--------------------------------------------------------------------------
+  # * Complete Quest
+  # Uses quest name or id to change state of quest to complete
+  #--------------------------------------------------------------------------
+  def complete_quest(name_or_id)
+    # Check if passed value is ID
+    if name_or_id.is_a?(Integer)
+      # Set quest to known
+      @all_quests[name_or_id].complete
+    else
+      # Look up quest using name
+      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
+      # Set quest to known
+      quest_to_change.complete
+    end
+    sort_quests
+  end
+  # Create shorthand name for eventing scripts
+  alias cq complete_quest
+  #--------------------------------------------------------------------------
+  # * Setup - Performs first time setup of quest data
+  #--------------------------------------------------------------------------
+  def setup
+    # if true
+    if CREATE_ENCRYPTED
+      # Load unencrypted data
+      Game_Quests.normal_setup
+      # Create encrypted .rxdata
+      Game_Quests.create_encrypted
+    # elsif true
+    elsif USE_ENCRYPTED
+      # Load encrypted data
+      Game_Quests.encrypted_setup
+    else
+      # Load unencrypted data
+      Game_Quests.normal_setup
+    end
+    # initialize Game_Quest object data from $data_quests array
+    for quest in $data_quests
+      self.add_quest(quest)
+    end
+    # Set Main Quest to known
+    discover_quest(0)
+  end
+  #--------------------------------------------------------------------------
+  # * GQs - Normal Setup
+  # Class method that intializes normal quest data 
+  #--------------------------------------------------------------------------
+  def Game_Quests.normal_setup
+    # Create array of quest data from file
+    quest_array = File.open(QUEST_FILENAME) {|f| 
+                f.readlines("mobius_quest_break\n\n")}
+    # Initialize $data_quests array
+    $data_quests = Array.new
+    # Create Game_Quest objects from data
+    for quest_data in quest_array
+      # Split quest data by paragraph
+      quest_data_array = quest_data.split("\n\n")
+      # Remove file delimiter "mobius_quest_break\n\n"
+      quest_data_array.pop
+      # Set and remove name
+      name = quest_data_array.shift
+      # Initialize info array
+      info_array = []
+      # Organize phase info into useable line lengths
+      for quest_data_line in quest_data_array
+        new_arr = []
+        # Split phase info into words
+        temp_arr = quest_data_line.split
+        temp_str = ""
+        for word in temp_arr
+          # Rejoin words together
+          temp_str.concat(word + " ")
+          # When line length is useable, push to new_arr
+          if temp_str.size >= 35
+            new_arr.push(temp_str.strip)
+            temp_str = ""
+          end
+        end
+        # Push leftover string
+        new_arr.push(temp_str.strip) unless temp_str == ""
+        # Push phase info to info_array
+        info_array.push(new_arr)
+      end
+      # Push new Game_Quest object to $data_quests array
+      $data_quests.push(Game_Quest.new(name, info_array))
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * GQs - Encrypted Setup
+  # Class method that intializes encrypted quest data 
+  #--------------------------------------------------------------------------
+  def Game_Quests.encrypted_setup
+    # load encrypted data
+    $data_quests = load_data("Data/Quests.rxdata")
+  end
+  #--------------------------------------------------------------------------
+  # * GQs - Create Setup
+  # Class method that creates encrypted quest data 
+  #--------------------------------------------------------------------------
+  def Game_Quests.create_encrypted
+    # save encrypted data
+    save_data($data_quests, "Data/Quests.rxdata")
+  end
+end
+#==============================================================================
+# ** Window Quest Info
+#------------------------------------------------------------------------------
+#  This window lists the info for the quests
+#==============================================================================
+
+class Window_QuestInfo < Window_Selectable
+  #--------------------------------------------------------------------------
+  # * Object Initialization
+  #--------------------------------------------------------------------------
+  def initialize()
+    super(200, 0, 440, 480)
+    self.active = false
+    self.contents = Bitmap.new(width - 32, height - 32)
+    self.index = -1
+    refresh([""])
+  end
+  #--------------------------------------------------------------------------
+  # * Refresh
+  #--------------------------------------------------------------------------
+  def refresh(text_array)
+    self.contents.clear
+    self.contents.font.color = normal_color
+    for i in 0...text_array.size
+      line = text_array[i]
+      self.contents.draw_text(0, i * 22, 408, 22, line)
+    end
+  end
+end
+#==============================================================================
+# ** Window Quest List
+#------------------------------------------------------------------------------
+#  This window lists all currently active/completed quests
+#==============================================================================
+
+class Window_QuestList < Window_Selectable 
+  #--------------------------------------------------------------------------
+  # * Object Initialization
+  #--------------------------------------------------------------------------
+  def initialize()
+    super(0, 0, 200, 480)
+    @current_quests = []        # Array of current quests
+    @completed_quests = []      # Array of completed quests
+    @top_half_size = 0          # Number of rows of current quests
+    @bottom_half_size = 0       # Number of rows of completed quests
+    self.active = true
+    self.index = 0
+    refresh
+  end
+  #--------------------------------------------------------------------------
+  # * Refresh
+  #--------------------------------------------------------------------------
+  def refresh
+    # Determine total number of rows
+    @item_max = [@top_half_size + @bottom_half_size, 1].max
+    if self.contents != nil
+      self.contents.dispose
+    end
+    # Draw bitmap
+    self.contents = Bitmap.new(200 - 32, row_max * 32)
+    self.contents.font.color = normal_color
+    # Draw current quests
+    for i in 0...@top_half_size
+      quest_name = @current_quests[i].name
+      self.contents.draw_text(8, i * 32, 160, 32, quest_name)
+    end
+    self.contents.font.color = disabled_color
+    # Draw completed quests
+    for i in 0...@bottom_half_size
+      quest_name = @completed_quests[i].name
+      self.contents.draw_text(8, i * 32 + @top_half_size * 
+      32, 160, 32, quest_name)
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Set Quests
+  #--------------------------------------------------------------------------
+  def set_quests(new_current_quests, new_completed_quests)
+    if @current_quests != new_current_quests or
+       @completed_quests != new_completed_quests
+       #set new quests
+       @current_quests = new_current_quests
+       @completed_quests = new_completed_quests
+       @top_half_size = @current_quests.size
+       @bottom_half_size = @completed_quests.size
+       #call update
+       refresh
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Get Index Info
+  #   Returns the text info from which ever quest is currently highlighted
+  #--------------------------------------------------------------------------
+  def get_index_info
+    # Unless there are no quests
+    unless @current_quests.empty? and @completed_quests.empty?
+      # Determine cursor location
+     if self.index < @top_half_size
+        # Get selected quest info
+        @current_quests[self.index].get_current_info 
+      else
+        # Get selected quest info
+        @completed_quests[self.index - @top_half_size].get_current_info
+      end
+    end
+  end
+end
+#==============================================================================
+# ** Scene_Quest
+#------------------------------------------------------------------------------
+#  This class performs quest screen processing.
+#==============================================================================
+
+class Scene_Quest
+  #--------------------------------------------------------------------------
+  # * Main Processing
+  #--------------------------------------------------------------------------
+  def main
+    # Make QuestList Window
+    @quest_list_window = Window_QuestList.new
+    # Make QuestInfo Window
+    @quest_info_window = Window_QuestInfo.new
+    # Update Game Quests
+    $game_quests.sort_quests
+    # Refresh QuestList
+    @quest_list_window.set_quests($game_quests.current_quests, 
+                                  $game_quests.completed_quests)
+    # Execute transition
+    Graphics.transition
+    # Main loop
+    loop do
+      # Update game screen
+      Graphics.update
+      # Update input information
+      Input.update
+      # Frame update
+      update
+      # Abort loop if screen is changed
+      if $scene != self
+        break
+      end
+    end
+    # Prepare for transition
+    Graphics.freeze
+    # Dispose of windows
+    @quest_list_window.dispose
+    @quest_info_window.dispose
+  
+  end
+  #--------------------------------------------------------------------------
+  # * Frame Update
+  #--------------------------------------------------------------------------
+  def update
+    # Update windows
+    @quest_list_window.update
+    new_text = @quest_list_window.get_index_info
+    @quest_info_window.refresh(new_text)
+    # When cancel
+    if Input.trigger?(Input::B)
+      # Play cancel SE
+      $game_system.se_play($data_system.cancel_se)
+      # Return to menu
+      $scene = Scene_Menu.new()
+    end
+  end
+end
+# Changes to Scene_Title
+class Scene_Title
+  
+  # Alias old method
+  alias mobius_command_new_game command_new_game
+  def command_new_game
+    # Call old method
+    mobius_command_new_game
+    # Initialize Game_Quests object
+    $game_quests = Game_Quests.new
+  end
+end
+
+# Changes to Scene_Save
+class Scene_Save
+  
+  # Alias old method
+  alias mobius_write_save_data write_save_data
+  def write_save_data(file)
+    # Call old method
+    mobius_write_save_data(file)
+    # Dump Game_Quests object state to the save file
+    Marshal.dump($game_quests, file)
+  end
+end
+
+# Changes to Scene_Load
+class Scene_Load
+  
+  def read_save_data(file)
+    # Read character data for drawing save file
+    characters = Marshal.load(file)
+    # Read frame count for measuring play time
+    Graphics.frame_count = Marshal.load(file)
+    # Read each type of game object
+    $game_system        = Marshal.load(file)
+    $game_switches      = Marshal.load(file)
+    $game_variables     = Marshal.load(file)
+    $game_self_switches = Marshal.load(file)
+    $game_screen        = Marshal.load(file)
+    $game_actors        = Marshal.load(file)
+    $game_party         = Marshal.load(file)
+    $game_troop         = Marshal.load(file)
+    $game_map           = Marshal.load(file)
+    $game_player        = Marshal.load(file)
+    $game_quests        = Marshal.load(file) #Mobius Added
+    # If magic number is different from when saving
+    # (if editing was added with editor)
+    if $game_system.magic_number != $data_system.magic_number
+      # Load map
+      $game_map.setup($game_map.map_id)
+      $game_player.center($game_player.x, $game_player.y)
+    end
+    # Refresh party members
+    $game_party.refresh
+  end
+end
