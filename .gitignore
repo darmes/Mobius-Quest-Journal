@@ -3,6 +3,13 @@ Data/
 Graphics/
 Mobius's Quest Journal Maker/
 *.rxdata
+*.exe
+*.ini
+*.rxproj
+*.zip
+*.jpg
+*.db
+*.dll
 
 *.gem
 *.rbc
