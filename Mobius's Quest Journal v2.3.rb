@@ -82,6 +82,136 @@ end
 #  one quest.
 #==============================================================================
 
+class Game_Quest
+  #--------------------------------------------------------------------------
+  # * Class Variables
+  #--------------------------------------------------------------------------
+    @@total_quests = 0           # Used to track number of quest objects
+
+  #--------------------------------------------------------------------------
+  # * Public Instance Variables
+  #--------------------------------------------------------------------------
+    attr_reader   :id            # ID
+    attr_reader   :name          # Name
+    #attr_accessor :phase         # Phase
+    attr_reader   :known         # Known status (true / false)
+    attr_reader   :completed     # Completed status (true / false)
+  #--------------------------------------------------------------------------
+  # * Object Initialization
+  #--------------------------------------------------------------------------
+  def initialize(name = "", info_array = [] )
+    @id = @@total_quests
+    @@total_quests += 1
+    @name = name
+    @phase = 0
+    @phase_variable = @id + Mobius::Quests::FIRST_VARIABLE_ID
+    @known = false
+    @known_switch = ( (@id * 2) + Mobius::Quests::FIRST_SWITCH_ID )
+    @completed = false
+    @completed_switch = ( (@id * 2) + 1 + Mobius::Quests::FIRST_SWITCH_ID )
+    # The info array contains text that corresponds to the current phase
+    # of the quest. So, you simply need to get the info in the i-th position
+    # of the array for the i-th phase
+    @info_array = info_array
+    # Call rename if set in customization
+    rename if (Mobius::Quests::RENAME_SWITCHES_VARIABLES and Mobius::Quests::USE_SWITCHES_VARIABLES)
+  end
+  #--------------------------------------------------------------------------
+  # * Get Current Info
+  # Returns text info for the current phase
+  #--------------------------------------------------------------------------
+  def get_current_info
+    @info_array.fetch(@phase, [])
+  end
+  #--------------------------------------------------------------------------
+  # * Phase=
+  # Sets the quest phase 
+  #--------------------------------------------------------------------------
+  def phase=(value)
+    # Set phase
+    @phase = value
+    if Mobius::Quests::USE_SWITCHES_VARIABLES
+      # Set phase variable
+      $game_variables[@phase_variable] = value
+      # Refresh map
+      $game_map.need_refresh = true
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Discover
+  # Changes quest state known to true 
+  #--------------------------------------------------------------------------
+  def discover
+    # Set known flag
+    @known = true
+    if Mobius::Quests::USE_SWITCHES_VARIABLES
+      # Set known switch
+      $game_switches[@known_switch] = true
+      # Refresh map
+      $game_map.need_refresh = true
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Complete
+  # Changes quest state completed to true 
+  #--------------------------------------------------------------------------
+  def complete
+    # Set completed flag
+    @completed = true
+    if Mobius::Quests::USE_SWITCHES_VARIABLES
+      # Set completed switch
+      $game_switches[@completed_switch] = true
+      # Refresh map
+      $game_map.need_refresh = true
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Data Check
+  # Updates quest phase, known, and completed with switch/variable  
+  #--------------------------------------------------------------------------
+  def data_check
+    if Mobius::Quests::USE_SWITCHES_VARIABLES
+      @phase = $game_variables[@phase_variable]
+      @known = $game_switches[@known_switch]
+      @completed = $game_switches[@completed_switch]
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Rename
+  # Renames associated switches and variables 
+  #--------------------------------------------------------------------------
+  def rename
+    str = @name + " Phase"
+    $data_system.variables[@phase_variable] = str
+    str = @name + " Known"
+    $data_system.switches[@known_switch] = str
+    str = @name + " Completed"
+    $data_system.switches[@completed_switch] = str
+    save_data($data_system, "Data/System.rxdata")
+  rescue
+    print(self.to_s)
+    raise
+  end
+  #--------------------------------------------------------------------------
+  # * to_s
+  # Returns quest object data as string
+  # Mostly used for debugging purposes
+  #--------------------------------------------------------------------------
+  def to_s
+    "Quest ID: #{@id}\n" +
+    "Quest Name: #{@name}\n" +
+    "Quest Info:\n" +
+    @info_array.join("\n")
+  end
+end
+
+#==============================================================================
+# ** Game_Quests
+#------------------------------------------------------------------------------
+#  This class handles the Game Quest arrays. Refer to "$game_quests" for the
+#  instance of this class.
+#==============================================================================
+
 class Game_Quests
   #--------------------------------------------------------------------------
   # * Public Instance Variables
@@ -220,311 +350,6 @@ class Game_Quests
     # Since things have changed, re-sort the quests
     sort_quests
   end
-  #--------------------------------------------------------------------------
-  # * Data Check
-  # Performs a data check on the specified quest
-  #--------------------------------------------------------------------------
-  def data_check(id)
-    @all_quests[id].data_check if @all_quests[id]
-  end
-  #--------------------------------------------------------------------------
-  # * Data Check All
-  # Performs a data check on all quests
-  #--------------------------------------------------------------------------
-  def data_check_all
-    for quest in @all_quests
-      quest.data_check
-    end
-  end
-  #--------------------------------------------------------------------------
-  # * Setup - Performs first time setup of quest data
-  #--------------------------------------------------------------------------
-  def setup
-    # begin block for error handling
-    begin
-      # if true
-      if Mobius::Quests::CREATE_ENCRYPTED
-        # Load unencrypted data
-        Game_Quests.normal_setup
-        # Create encrypted .rxdata
-        Game_Quests.create_encrypted
-      # elsif true
-      elsif Mobius::Quests::USE_ENCRYPTED
-        # Load encrypted data
-        Game_Quests.encrypted_setup
-      else
-        # Load unencrypted data
-        Game_Quests.normal_setup
-      end
-      # initialize Game_Quest object data from $data_quests array
-      for quest in $data_quests
-        self.add_quest(quest)
-      end
-      # Set Main Quest to known
-      discover_quest(0)
-    # rescue when no file is found   
-    rescue Errno::ENOENT => e 
-      Game_Quests.on_no_file(e)
-      raise SystemExit
-    end
-  end
-  #--------------------------------------------------------------------------
-  # * GQs - Normal Setup
-  # Class method that intializes normal quest data 
-  #--------------------------------------------------------------------------
-  def Game_Quests.normal_setup
-    # Create array of quest data from file
-    quest_array = File.open(Mobius::Quests::QUEST_FILENAME) {|f| 
-                f.readlines("mobius_quest_break\n\n")}
-    # Remove empty last element if necessary
-    if quest_array.last.rstrip == ""
-      quest_array.pop
-    end
-    # Initialize $data_quests array
-    $data_quests = Array.new
-    # Create Game_Quest objects from data
-    for quest_data in quest_array
-      # Split quest data by paragraph
-      quest_data_array = quest_data.split("\n\n")
-      # Remove file delimiter "mobius_quest_break\n\n"
-      quest_data_array.pop
-      # Set and remove name
-      name = quest_data_array.shift
-      # Initialize info array
-      info_array = []
-      # Organize phase info into useable line lengths
-      for quest_data_line in quest_data_array
-        new_arr = []
-        # Split phase info into words
-        temp_arr = quest_data_line.split
-        temp_str = ""
-        for word in temp_arr
-          # Rejoin words together
-          temp_str.concat(word + " ")
-          # When line length is useable, push to new_arr
-          if temp_str.size >= 35
-            new_arr.push(temp_str.strip)
-            temp_str = ""
-          end
-        end
-        # Push leftover string
-        new_arr.push(temp_str.strip) unless temp_str == ""
-        # Push phase info to info_array
-        info_array.push(new_arr)
-      end
-      # Push new Game_Quest object to $data_quests array
-      $data_quests.push(Game_Quest.new(name, info_array))
-    end
-  end
-  #--------------------------------------------------------------------------
-  # * GQs - Encrypted Setup
-  # Class method that intializes encrypted quest data 
-  #--------------------------------------------------------------------------
-  def Game_Quests.encrypted_setup
-    # load encrypted data
-    $data_quests = load_data("Data/Quests.rxdata")
-  end
-  #--------------------------------------------------------------------------
-  # * GQs - Create Setup
-  # Class method that creates encrypted quest data 
-  #--------------------------------------------------------------------------
-  def Game_Quests.create_encrypted
-    # save encrypted data
-    save_data($data_quests, "Data/Quests.rxdata")
-  end
-  #--------------------------------------------------------------------------
-  # * GQs - File Search
-  # Class method that runs a search looking for similarly named files 
-  #--------------------------------------------------------------------------
-  def Game_Quests.file_search(dir, search_string)
-    matches = []
-    Dir.foreach(dir) do |entry|
-      next if ((entry == ".") or (entry == ".."))
-      if File.directory?(entry)
-        # search sub directory
-        sub_dir = File.expand_path(entry, dir)
-        matches += Game_Quests.file_search(sub_dir, search_string)
-      else
-        # run comparison
-        if entry.match(Regexp.new(search_string, true))
-          full_path = File.expand_path(entry, dir)
-          matches.push(full_path)
-        end
-      end
-    end
-    return matches
-  end
-  #--------------------------------------------------------------------------
-  # * GQs - On No File
-  # Class method that handles a no file error 
-  #--------------------------------------------------------------------------
-  def Game_Quests.on_no_file(error)
-    # Construct filenames
-    user_filename = error.message.sub("No such file or directory - ", "")
-    user_basename = File.basename(user_filename, ".*")
-    full_path = File.expand_path(user_filename)
-    # Run search using given filename    
-    matches = Game_Quests.file_search(Dir.pwd, user_basename)
-    # Construct error message to user
-    message = "##Mobius' Quest Journal Script Says##\n"
-    message += "I was unable to find the file named: "
-    message += "\n\"" + full_path + "\"\n\n"
-    message += "I searched this folder: \n\"" + Dir.pwd + "\"\n"
-    message += "and its subfolders for similar file names"
-    unless matches.empty?
-      message += " and I found these. Maybe they're what you want?\n\n\""
-      message += matches.join("\"\n\n")
-    else
-      message += " but I couldn't find anything."
-    end
-    # display error message to user
-    print(message)
-  end
-end
-
-#==============================================================================
-# ** Game_Quests
-#------------------------------------------------------------------------------
-#  This class handles the Game Quest arrays. Refer to "$game_quests" for the
-#  instance of this class.
-#==============================================================================
-
-class Game_Quests
-  #--------------------------------------------------------------------------
-  # * Public Instance Variables
-  #--------------------------------------------------------------------------
-    attr_accessor :all_quests           # Array of all quest objects
-    attr_accessor :current_quests       # Array of all current quest objects
-    attr_accessor :completed_quests     # Array of all completed quest objects
-  #--------------------------------------------------------------------------
-  # * Object Initialization
-  #--------------------------------------------------------------------------
-  def initialize
-    @all_quests = []
-    @current_quests = []
-    @completed_quests = []
-    setup
-  end
-  #--------------------------------------------------------------------------
-  # * Add Quest - adds a quest object to the all_quests array
-  #--------------------------------------------------------------------------
-  def add_quest(quest)
-    @all_quests.push(quest)
-  end
-  #--------------------------------------------------------------------------
-  # * Sort Quests
-  # Refreshes the current_quests and completed_quests arrays
-  # Also sorts them as well as the all quests array by ID's
-  #--------------------------------------------------------------------------
-  def sort_quests
-    # Sort the all_quests array by ID
-    @all_quests.sort {|a,b| a.id <=> b.id }
-    # Reset the current and completed quest arrays
-    @current_quests = []
-    @completed_quests = []
-    # Push known and completed quests to their appropiate arrays
-    for quest in @all_quests
-      if quest.known and quest.completed
-        @completed_quests.push(quest)
-      elsif quest.known
-        @current_quests.push(quest)
-      end
-    end
-  end
-  #--------------------------------------------------------------------------
-  # * Discover Quest - uses quest name or id to change state of quest to known
-  #--------------------------------------------------------------------------
-  def discover_quest(name_or_id)
-    # Check if passed value is ID
-    if name_or_id.is_a?(Integer)
-      # Check if ID is valid
-      if @all_quests[name_or_id].is_a?(Game_Quest)
-        # Set quest to known
-        @all_quests[name_or_id].discover
-      else # If ID is invalid
-        # Print debug message
-        print("The quest ID provided (#{name_or_id}) is not valid.")
-      end
-    elsif name_or_id.is_a?(String)
-      # Look up quest using name
-      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
-      # Check if quest is valid
-      if quest_to_change.is_a?(Game_Quest)
-        # Set quest to known
-        quest_to_change.discover
-      else # If quest is invalid
-        # Print debug message
-        print("The quest name '#{name_or_id}' was not found.\n" +
-              "Check that the quest exists and that the spelling\n" +
-              "is correct." )
-      end
-    else # If input is invalid
-      # Print debug message
-      print("Unrecognized input provided to method 'discover_quest'.\n" +
-            "Input should be either an integer for the quest ID or\n" +
-            "a string representing the quest name." )
-    end
-    sort_quests
-  end
-  # Create shorthand name for eventing scripts
-  alias dq discover_quest
-  #--------------------------------------------------------------------------
-  # * Set Phase - uses quest name or id to change phase
-  #--------------------------------------------------------------------------
-  def set_phase(name_or_id, phase)
-    # Check if passed value is ID
-    if name_or_id.is_a?(Integer)
-      # Set quest to known
-      @all_quests[name_or_id].phase = phase
-    else
-      # Look up quest using name
-      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
-      # Set quest to known
-      quest_to_change.phase = phase
-    end
-    sort_quests
-  end
-  # Create shorthand name for eventing scripts
-  alias sp set_phase
-  #--------------------------------------------------------------------------
-  # * Complete Quest
-  # Uses quest name or id to change state of quest to complete
-  #--------------------------------------------------------------------------
-  def complete_quest(name_or_id)
-    # Check if passed value is ID
-    if name_or_id.is_a?(Integer)
-      # Check if ID is valid
-      if @all_quests[name_or_id].is_a?(Game_Quest)
-        # Set quest to known
-        @all_quests[name_or_id].complete
-      else # If ID is invalid
-        # Print debug message
-        print("The quest ID provided (#{name_or_id}) is not valid." +
-              "Check that the quest exists and that the id is correct." )
-      end
-    elsif name_or_id.is_a?(String)
-      # Look up quest using name
-      quest_to_change = @all_quests.find {|quest| quest.name == name_or_id}
-      # Check if quest is valid
-      if quest_to_change.is_a?(Game_Quest)
-        # Set quest to known
-        quest_to_change.complete
-      else # If quest is invalid
-        # Print debug message
-        print("The quest name '#{name_or_id}' was not found.\n" +
-              "Check that the quest exists and that the spelling\n" +
-              "is correct." )
-      end
-    else # If input is invalid
-      # Print debug message
-      print("Unrecognized input provided to method 'discover_quest'.\n" +
-            "Input should be either an integer for the quest ID or\n" +
-            "a string representing the quest name." )
-    end
-    sort_quests
-  end
-  # Create shorthand name for eventing scripts
-  alias cq complete_quest
   #--------------------------------------------------------------------------
   # * Data Check
   # Performs a data check on the specified quest
