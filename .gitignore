@@ -1,8 +1,8 @@
-/Audio
-/Data
-/Graphics
-/Mobius's Quest Journal Maker
-
+Audio/
+Data/
+Graphics/
+Mobius's Quest Journal Maker/
+*.rxdata
 
 *.gem
 *.rbc
