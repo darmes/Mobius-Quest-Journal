@@ -431,24 +431,24 @@ class Game_Quests
       # Initialize info array
       info_array = []
       # Organize phase info into useable line lengths
-      for single_phase_line in single_quest_array
-        new_arr = []
+      for single_phase_str in single_quest_array
+        phase_line_array = []
         # Split phase info into words
-        temp_arr = single_phase_line.split
+        temp_arr = single_phase_str.split
         temp_str = ""
         for word in temp_arr
           # Rejoin words together
           temp_str.concat(word + " ")
-          # When line length is useable, push to new_arr
+          # When line length is useable, push to phase_line_array
           if temp_str.size >= 35
-            new_arr.push(temp_str.strip)
+            phase_line_array.push(temp_str.strip)
             temp_str = ""
           end
         end
         # Push leftover string
-        new_arr.push(temp_str.strip) unless temp_str == ""
+        phase_line_array.push(temp_str.strip) unless temp_str == ""
         # Push phase info to info_array
-        info_array.push(new_arr)
+        info_array.push(phase_line_array)
       end
       # Push new Game_Quest object to $data_quests array
       $data_quests.push(Game_Quest.new(name, info_array))
