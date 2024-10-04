@@ -84,6 +84,10 @@ end
 
 class Game_Quest
   #--------------------------------------------------------------------------
+  # * Configuration Binding
+  #--------------------------------------------------------------------------
+  include Mobius::Quests
+  #--------------------------------------------------------------------------
   # * Class Variables
   #--------------------------------------------------------------------------
     @@total_quests = 0           # Used to track number of quest objects
@@ -104,17 +108,17 @@ class Game_Quest
     @@total_quests += 1
     @name = name
     @phase = 0
-    @phase_variable = @id + Mobius::Quests::FIRST_VARIABLE_ID
+    @phase_variable = @id + FIRST_VARIABLE_ID
     @known = false
-    @known_switch = ( (@id * 2) + Mobius::Quests::FIRST_SWITCH_ID )
+    @known_switch = ( (@id * 2) + FIRST_SWITCH_ID )
     @completed = false
-    @completed_switch = ( (@id * 2) + 1 + Mobius::Quests::FIRST_SWITCH_ID )
+    @completed_switch = ( (@id * 2) + 1 + FIRST_SWITCH_ID )
     # The info array contains text that corresponds to the current phase
     # of the quest. So, you simply need to get the info in the i-th position
     # of the array for the i-th phase
     @info_array = info_array
     # Call rename if set in customization
-    rename if (Mobius::Quests::RENAME_SWITCHES_VARIABLES and Mobius::Quests::USE_SWITCHES_VARIABLES)
+    rename if (RENAME_SWITCHES_VARIABLES and USE_SWITCHES_VARIABLES)
   end
   #--------------------------------------------------------------------------
   # * Get Current Info
@@ -130,7 +134,7 @@ class Game_Quest
   def phase=(value)
     # Set phase
     @phase = value
-    if Mobius::Quests::USE_SWITCHES_VARIABLES
+    if USE_SWITCHES_VARIABLES
       # Set phase variable
       $game_variables[@phase_variable] = value
       # Refresh map
@@ -144,7 +148,7 @@ class Game_Quest
   def discover
     # Set known flag
     @known = true
-    if Mobius::Quests::USE_SWITCHES_VARIABLES
+    if USE_SWITCHES_VARIABLES
       # Set known switch
       $game_switches[@known_switch] = true
       # Refresh map
@@ -158,7 +162,7 @@ class Game_Quest
   def complete
     # Set completed flag
     @completed = true
-    if Mobius::Quests::USE_SWITCHES_VARIABLES
+    if USE_SWITCHES_VARIABLES
       # Set completed switch
       $game_switches[@completed_switch] = true
       # Refresh map
@@ -170,7 +174,7 @@ class Game_Quest
   # Updates quest phase, known, and completed with switch/variable  
   #--------------------------------------------------------------------------
   def data_check
-    if Mobius::Quests::USE_SWITCHES_VARIABLES
+    if USE_SWITCHES_VARIABLES
       @phase = $game_variables[@phase_variable]
       @known = $game_switches[@known_switch]
       @completed = $game_switches[@completed_switch]
@@ -213,6 +217,10 @@ end
 #==============================================================================
 
 class Game_Quests
+  #--------------------------------------------------------------------------
+  # * Configuration Binding
+  #--------------------------------------------------------------------------
+  include Mobius::Quests
   #--------------------------------------------------------------------------
   # * Public Instance Variables
   #--------------------------------------------------------------------------
@@ -373,13 +381,13 @@ class Game_Quests
     # begin block for error handling
     begin
       # if true
-      if Mobius::Quests::CREATE_ENCRYPTED
+      if CREATE_ENCRYPTED
         # Load unencrypted data
         Game_Quests.normal_setup
         # Create encrypted .rxdata
         Game_Quests.create_encrypted
       # elsif true
-      elsif Mobius::Quests::USE_ENCRYPTED
+      elsif USE_ENCRYPTED
         # Load encrypted data
         Game_Quests.encrypted_setup
       else
@@ -404,7 +412,7 @@ class Game_Quests
   #--------------------------------------------------------------------------
   def Game_Quests.normal_setup
     # Create array of quest data from file
-    quest_array = File.open(Mobius::Quests::QUEST_FILENAME) {|f| 
+    quest_array = File.open(QUEST_FILENAME) {|f| 
                 f.readlines("mobius_quest_break\n\n")}
     # Remove empty last element if necessary
     if quest_array.last.rstrip == ""
@@ -636,6 +644,10 @@ end
 
 class Scene_Quest
   #--------------------------------------------------------------------------
+  # * Configuration Binding
+  #--------------------------------------------------------------------------
+  include Mobius::Quests
+  #--------------------------------------------------------------------------
   # * Object Initialization
   #--------------------------------------------------------------------------
   def initialize(return_scene = $scene.type)
@@ -652,10 +664,10 @@ class Scene_Quest
     # Create memory variable
     @list_index = @quest_list_window.index
     # Update Game Quests
-    $game_quests.data_check_all if Mobius::Quests::USE_SWITCHES_VARIABLES
+    $game_quests.data_check_all if USE_SWITCHES_VARIABLES
     $game_quests.sort_quests
     # Refresh QuestList
-    unless Mobius::Quests::SHOW_ALL_QUESTS
+    unless SHOW_ALL_QUESTS
       # Normal refresh
       @quest_list_window.set_quests($game_quests.current_quests, 
                                     $game_quests.completed_quests)
