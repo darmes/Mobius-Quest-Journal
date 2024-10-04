@@ -434,9 +434,9 @@ class Game_Quests
       for single_phase_str in single_quest_array
         phase_line_array = []
         # Split phase info into words
-        temp_arr = single_phase_str.split
+        word_array = single_phase_str.split
         temp_str = ""
-        for word in temp_arr
+        for word in word_array
           # Rejoin words together
           temp_str.concat(word + " ")
           # When line length is useable, push to phase_line_array
