@@ -380,13 +380,12 @@ class Game_Quests
   def setup
     # begin block for error handling
     begin
-      # if true
+      # This flag has priority
       if CREATE_ENCRYPTED
         # Load unencrypted data
         Game_Quests.normal_setup
         # Create encrypted .rxdata
         Game_Quests.create_encrypted
-      # elsif true
       elsif USE_ENCRYPTED
         # Load encrypted data
         Game_Quests.encrypted_setup
@@ -412,29 +411,30 @@ class Game_Quests
   #--------------------------------------------------------------------------
   def Game_Quests.normal_setup
     # Create array of quest data from file
-    quest_array = File.open(QUEST_FILENAME) {|f| 
-                f.readlines("mobius_quest_break\n\n")}
+    all_quest_array = File.open(QUEST_FILENAME) {|f|
+      f.readlines("mobius_quest_break\n\n")
+    }
     # Remove empty last element if necessary
-    if quest_array.last.rstrip == ""
-      quest_array.pop
+    if all_quest_array.last.rstrip == ""
+      all_quest_array.pop
     end
     # Initialize $data_quests array
     $data_quests = Array.new
     # Create Game_Quest objects from data
-    for quest_data in quest_array
+    for single_quest_str in all_quest_array
       # Split quest data by paragraph
-      quest_data_array = quest_data.split("\n\n")
+      single_quest_array = single_quest_str.split("\n\n")
       # Remove file delimiter "mobius_quest_break\n\n"
-      quest_data_array.pop
+      single_quest_array.pop
       # Set and remove name
-      name = quest_data_array.shift
+      name = single_quest_array.shift
       # Initialize info array
       info_array = []
       # Organize phase info into useable line lengths
-      for quest_data_line in quest_data_array
+      for single_phase_line in single_quest_array
         new_arr = []
         # Split phase info into words
-        temp_arr = quest_data_line.split
+        temp_arr = single_phase_line.split
         temp_str = ""
         for word in temp_arr
           # Rejoin words together
