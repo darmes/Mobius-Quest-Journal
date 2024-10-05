@@ -24,7 +24,7 @@ See below for how to do that.
 
 ### Advanced Quest Formatting
 In addition to plain text, you can also add "control codes" similar to RMXP's default message window.
-To see how to use those, view the guide.
+To see how to use those, view the guide [here](https://github.com/darmes/Mobius-Quest-Journal/blob/f3cf242013f8091e9a3864acee3a65a0f8700ad3/Using%20Control%20Codes%20in%20Your%20Quests.pdf).
 
 # Configuration Options
 
