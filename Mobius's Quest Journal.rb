@@ -61,14 +61,14 @@ module Mobius
     #--------------------------------------------------------------------------
     # * Module constants
     #--------------------------------------------------------------------------
+      QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
       CREATE_ENCRYPTED = false              # Determines encrypted file creation
       USE_ENCRYPTED = false                 # Sets use of encrypted file
-      QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
       USE_SWITCHES_VARIABLES = true         # Sets use of switches/variables
       FIRST_SWITCH_ID = 2                   # Sets the first switch ID
       FIRST_VARIABLE_ID = 2                 # Sets the first variable ID
       RENAME_SWITCHES_VARIABLES = true      # Determines renaming of switches/variables
-      SHOW_ALL_QUESTS = true               # DEBUGGING FEATURE - Always shows all quests  
+      SHOW_ALL_QUESTS = false               # DEBUGGING FEATURE - Always shows all quests  
   end
 end
 #==============================================================================
