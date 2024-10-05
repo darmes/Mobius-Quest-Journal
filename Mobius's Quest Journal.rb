@@ -63,13 +63,11 @@ module Mobius
     #--------------------------------------------------------------------------
       CREATE_ENCRYPTED = false              # Determines encrypted file creation
       USE_ENCRYPTED = false                 # Sets use of encrypted file
-      # QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
-      QUEST_FILENAME = "Data/QuestDataAdvanced.txt" # Sets unencrypted filename
+      QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
       USE_SWITCHES_VARIABLES = true         # Sets use of switches/variables
       FIRST_SWITCH_ID = 2                   # Sets the first switch ID
       FIRST_VARIABLE_ID = 2                 # Sets the first variable ID
       RENAME_SWITCHES_VARIABLES = true      # Determines renaming of switches/variables
-      ADVANCED_TEXT_MODE = true             # 
       SHOW_ALL_QUESTS = true               # DEBUGGING FEATURE - Always shows all quests  
   end
 end
@@ -125,7 +123,6 @@ class Game_Quest
   # Returns text info for the current phase
   #--------------------------------------------------------------------------
   def get_current_info
-    #@info_array.fetch(@phase, [])
     @info_array.fetch(@phase, "").clone
   end
   #--------------------------------------------------------------------------
@@ -411,57 +408,25 @@ class Game_Quests
   #--------------------------------------------------------------------------
   def Game_Quests.normal_setup
     # Create array of quest data from file
-    all_quest_array = File.open(QUEST_FILENAME) {|f|
+    all_quests_array = File.open(QUEST_FILENAME) {|f|
       f.readlines("mobius_quest_break\n\n")
     }
     # Remove empty last element if necessary
-    if all_quest_array.last.rstrip == ""
-      all_quest_array.pop
+    if all_quests_array.last.rstrip == ""
+      all_quests_array.pop
     end
     # Initialize $data_quests array
     $data_quests = Array.new
     # Create Game_Quest objects from data
-    for single_quest_str in all_quest_array
-      Console.log("Single Quest String:")
-      Console.log(single_quest_str)
+    for single_quest_str in all_quests_array
       # Split quest data by paragraph
       single_quest_array = single_quest_str.split("\n\n")
       # Remove file delimiter "mobius_quest_break\n\n"
       single_quest_array.pop
       # Set and remove name
       name = single_quest_array.shift
-      # Initialize info array
-      info_array = []
-      if ADVANCED_TEXT_MODE
-        # In advanced mode, we store the raw lines
-        # and manipulate them later
-        info_array = single_quest_array
-      else
-        # In regular mode, we try to automatically
-        # organize phase info into useable line lengths
-        for single_phase_str in single_quest_array
-          phase_line_array = []
-          # Split phase info into words
-          word_array = single_phase_str.split
-          temp_str = ""
-          for word in word_array
-            # Rejoin words together
-            temp_str.concat(word + " ")
-            # When line length is useable, push to phase_line_array
-            if temp_str.size >= 35
-              phase_line_array.push(temp_str.strip)
-              temp_str = ""
-            end
-          end
-          # Push leftover string
-          phase_line_array.push(temp_str.strip) unless temp_str == ""
-          # Push phase info to info_array
-          #info_array.push(phase_line_array)
-          info_array.push(phase_line_array.join("\n"))
-        end
-      end
       # Push new Game_Quest object to $data_quests array
-      $data_quests.push(Game_Quest.new(name, info_array))
+      $data_quests.push(Game_Quest.new(name, single_quest_array))
     end
   end
   #--------------------------------------------------------------------------
@@ -538,7 +503,6 @@ class Window_Base < Window
   # * Process Control Codes
   #--------------------------------------------------------------------------
   def process_control_codes(text)
-    Console.log("process_control_codes")
     # Change "\\" to forward slash literal
     text.gsub!(/\\\\/) { "\\" }
     # Replace \v with variable
@@ -575,20 +539,18 @@ class Window_Base < Window
     # Skipped \002 to preserve compatibility with default implementation of \g
 
     # Replace Hex \c with \003
-    text.gsub!(/\\[Cc]\[#([0123456789abcdefABCDEF]+)\]/) { "\003[#{$1}]" }
+    text.gsub!(/\\[Cc]\[#([0-9a-fA-F]+)\]/) { "\003[#{$1}]" }
 
     # Bold
-    text.gsub!(/\\[Bb]/) { "\004" }
+    text.gsub!(/\\[Ff][Bb]/) { "\004" }
     # Italics
-    text.gsub!(/\\[Ii]/) { "\005" }
+    text.gsub!(/\\[Ff][Ii]/) { "\005" }
     # Font
-    text.gsub!(/\\[Ff][Oo][Nn][Tt]\[(.*?)\]/) { "\006[#{$1}]" }
+    text.gsub!(/\\[Ff][Nn]\[(.*?)\]/) { "\006[#{$1}]" }
 
-    # \007, \008, \009 reserved for future use
-
-    # Replace \icon[name] with \010[name]
+    # Replace \icon[name] with \007[name]
     text.gsub!(/\\[Ii][Cc][Oo][Nn]\[(.*?)\]/) {
-      "\010[#{$1}]"
+      "\007[#{$1}]"
     }
 
     # We can display any armor, item, skill, or weapon
@@ -601,8 +563,8 @@ class Window_Base < Window
         when "s" then $data_skills[index]
         when "w" then $data_weapons[index]
       end
-      if $2 != "" # Did they include the "i" for icon?
-        next "\010[#{item.icon_name}]" + "  " + item.name
+      if $2 != nil # Did they include the "i" for icon?
+        next "\007[#{item.icon_name}]" + "  " + item.name
       else
         next item.name
       end
@@ -673,38 +635,74 @@ class Window_Base < Window
     return text
   end
   #--------------------------------------------------------------------------
+  # * Process Line Length
+  # Takes a given piece of text and tries to wrap it across multiple lines
+  # while still respecting any existing line breaks
+  #--------------------------------------------------------------------------
+  def process_line_length(text, max_width = self.contents.width)
+    # Respect any existing line breaks by splitting on them
+    lines = text.split("\n")
+    new_lines = []
+    # For each line, test if the line is too long for the window.
+    # If it is, then split that line into multiple lines
+    for line in lines
+      new_line_array = []
+      words = line.split
+      for word in words
+        # Add word to see if it fits
+        new_line_array.push(word)
+        # Remove any non-printing or control codes while we calc the width
+        printed_str = new_line_array.join(" ").gsub(/[^:print]\[(.*?)\]/, "")
+        line_width = self.contents.text_size(printed_str).width
+        # If the line was too long, mark this line as done and
+        # move current word to next line
+        if line_width > max_width
+          new_line_array.pop
+          new_lines.push(new_line_array.join(" "))
+          new_line_array = [word]
+        end
+      end
+      # Add any leftover words
+      new_lines.push(new_line_array.join(" "))
+    end
+    # Return the original text with new line breaks as needed
+    return new_lines.join("\n")
+  end
+  #--------------------------------------------------------------------------
   # * Draw Processed Text
   #--------------------------------------------------------------------------
-  def draw_processed_text(text, x = 0, y = 0)
-    console.log("draw processed text")
-    while (char = text.slice!(/./m)) != nil
-      console.log("x, y, char: #{x}, #{y}, #{char}")
-      x, y = draw_char(char, text, x, y)
+  def draw_processed_text(text, x = 0, y = 0, max_width = self.contents.width)
+    # When slicing text this way, you get an int rather than a string
+    # So be sure to convert it back using "chr" when needed
+    while (char = text.slice!(0)) != nil
+      x, y = draw_char(char, text, x, y, max_width)
     end
   end
   #--------------------------------------------------------------------------
   # * Draw Char
   #--------------------------------------------------------------------------
-  def draw_char(char, text, x = 0, y = 0)
+  def draw_char(char, text, x, y, max_width)
     case char
-    when "\001" # handle default color
+    when 1 # handle default color (\001)
       change_color(text)
-    when "\003" # handle hex color
+    when 3 # handle hex color (\003)
       change_color_hex(text)
-    when "\004" # handle bold
+    when 4 # handle bold (\004)
       change_bold
-    when "\005" # handle italics
+    when 5 # handle italics (\005)
       change_italics
-    when "\006" # handle font
+    when 6 # handle font (\006)
       change_font(text)
-    when "\010" # handle icon
-      x, y = draw_icon(text, x, y)
-    when "\n"   # handle newline
-      y += 1
-      x = 0
+    when 7 # handle icon (\007)
+      x, y = draw_icon(text, x, y, max_width)
+    when 10 # handle newline (\n)
+      x, y = change_line(x, y)
     else
-      self.contents.draw_text(x, y * 22, 40, 22, char.to_s)
-      x += self.contents.text_size(char).width
+      new_text = char.chr
+      new_width = self.contents.text_size(new_text).width
+      x, y = check_draw_length(x, y, new_width, max_width)
+      self.contents.draw_text(x, y * 22, new_width + 2, 22, new_text)
+      x += new_width
     end
     return x, y
   end
@@ -722,12 +720,12 @@ class Window_Base < Window
   # * Change Color Hex
   #--------------------------------------------------------------------------
   def change_color_hex(text)
-    text.sub!(/\[([0123456789abcdefABCDEF]+)\]/, "")
+    text.sub!(/\[([0-9a-fA-F]+)\]/, "")
     hex_code = $1.to_s.downcase
 
-    red   = ("0x" + hex_code.slice(0..1)).hex
-    blue  = ("0x" + hex_code.slice(2..3)).hex
-    green = ("0x" + hex_code.slice(4..5)).hex
+    red   = hex_code.slice(0..1).hex
+    blue  = hex_code.slice(2..3).hex
+    green = hex_code.slice(4..5).hex
 
     self.contents.font.color = Color.new(red, blue, green)
   end
@@ -758,12 +756,30 @@ class Window_Base < Window
   #--------------------------------------------------------------------------
   # * Draw Icon
   #--------------------------------------------------------------------------
-  def draw_icon(text, x, y)
+  def draw_icon(text, x, y, max_width)
     text.sub!(/\[(.*?)\]/, "")
-    # draw the icon
     icon = RPG::Cache.icon($1.to_s)
-    self.contents.blt(x, y * 22, icon, Rect.new(0, 0, 24, 24))
-    x += 24
+    width = 24
+    # If drawing will exceed boundaries, move to new line
+    x, y = check_draw_length(x, y, width, max_width)
+    # draw the icon
+    self.contents.blt(x, y * 22, icon, Rect.new(0, 0, width, width))
+    x += width
+    return x, y
+  end
+  #--------------------------------------------------------------------------
+  # * Change Line
+  #--------------------------------------------------------------------------
+  def change_line(x, y)
+    return 0, y + 1
+  end
+  #--------------------------------------------------------------------------
+  # * Check Draw Length
+  #--------------------------------------------------------------------------
+  def check_draw_length(x, y, width, max_width)
+    if x + width > max_width
+      x, y = change_line(x, y)
+    end
     return x, y
   end
 end
@@ -775,10 +791,6 @@ end
 #==============================================================================
 class Window_QuestInfo < Window_Selectable
   #--------------------------------------------------------------------------
-  # * Configuration Binding
-  #--------------------------------------------------------------------------
-  include Mobius::Quests
-  #--------------------------------------------------------------------------
   # * Object Initialization
   #--------------------------------------------------------------------------
   def initialize()
@@ -786,28 +798,37 @@ class Window_QuestInfo < Window_Selectable
     self.active = false
     self.contents = Bitmap.new(width - 32, height - 32)
     self.index = -1
-    refresh("")
+    @text = ""
+  end
+  #--------------------------------------------------------------------------
+  # * Set Text
+  #--------------------------------------------------------------------------
+  def set_text(quest_text)
+    if @text != quest_text
+      refresh(quest_text)
+    end
   end
   #--------------------------------------------------------------------------
   # * Refresh
   #--------------------------------------------------------------------------
-  def refresh(text_array)
-    Console.log("refresh")
-    Console.log(text_array)
+  def refresh(quest_text)
     # Clear old contents
     if self.contents != nil
       self.contents.clear
     end
-    # Set font color
+    # Break if text is nil
+    return unless quest_text
+
+    # Reset font
+    self.contents.font.name = Font.default_name
     self.contents.font.color = normal_color
-    # Break if text_array is nil
-    return unless text_array
-    # Draw info
-    if ADVANCED_TEXT_MODE
-      text_array = process_control_codes(text_array)
-    end
-    draw_processed_text(text_array)
-    # self.contents.draw_text(0, 0 * 22, 408, 22, text_array)
+    self.contents.font.bold = false
+    self.contents.font.italic = false
+
+    # Process and draw quest info
+    quest_text = process_control_codes(quest_text)
+    quest_text = process_line_length(quest_text)
+    draw_processed_text(quest_text)
   end
 end
 
@@ -962,7 +983,7 @@ class Scene_Quest
     if @list_index != @quest_list_window.index
       # Redraw info window
       new_text = @quest_list_window.get_index_info
-      @quest_info_window.refresh(new_text)
+      @quest_info_window.set_text(new_text)
       # Set index memory
       @list_index = @quest_list_window.index
     end
