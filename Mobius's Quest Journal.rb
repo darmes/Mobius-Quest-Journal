@@ -63,12 +63,14 @@ module Mobius
     #--------------------------------------------------------------------------
       CREATE_ENCRYPTED = false              # Determines encrypted file creation
       USE_ENCRYPTED = false                 # Sets use of encrypted file
-      QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
+      # QUEST_FILENAME = "Data/QuestData.txt" # Sets unencrypted filename
+      QUEST_FILENAME = "Data/QuestDataAdvanced.txt" # Sets unencrypted filename
       USE_SWITCHES_VARIABLES = true         # Sets use of switches/variables
       FIRST_SWITCH_ID = 2                   # Sets the first switch ID
       FIRST_VARIABLE_ID = 2                 # Sets the first variable ID
       RENAME_SWITCHES_VARIABLES = true      # Determines renaming of switches/variables
-      SHOW_ALL_QUESTS = false               # DEBUGGING FEATURE - Always shows all quests  
+      ADVANCED_TEXT_MODE = true             # 
+      SHOW_ALL_QUESTS = true               # DEBUGGING FEATURE - Always shows all quests  
   end
 end
 #==============================================================================
@@ -81,7 +83,6 @@ end
 #  The class that holds quests. Each instance of Game Quest is used to hold
 #  one quest.
 #==============================================================================
-
 class Game_Quest
   #--------------------------------------------------------------------------
   # * Configuration Binding
@@ -97,7 +98,6 @@ class Game_Quest
   #--------------------------------------------------------------------------
     attr_reader   :id            # ID
     attr_reader   :name          # Name
-    #attr_accessor :phase         # Phase
     attr_reader   :known         # Known status (true / false)
     attr_reader   :completed     # Completed status (true / false)
   #--------------------------------------------------------------------------
@@ -125,7 +125,8 @@ class Game_Quest
   # Returns text info for the current phase
   #--------------------------------------------------------------------------
   def get_current_info
-    @info_array.fetch(@phase, [])
+    #@info_array.fetch(@phase, [])
+    @info_array.fetch(@phase, "").clone
   end
   #--------------------------------------------------------------------------
   # * Phase=
@@ -215,7 +216,6 @@ end
 #  This class handles the Game Quest arrays. Refer to "$game_quests" for the
 #  instance of this class.
 #==============================================================================
-
 class Game_Quests
   #--------------------------------------------------------------------------
   # * Configuration Binding
@@ -422,6 +422,8 @@ class Game_Quests
     $data_quests = Array.new
     # Create Game_Quest objects from data
     for single_quest_str in all_quest_array
+      Console.log("Single Quest String:")
+      Console.log(single_quest_str)
       # Split quest data by paragraph
       single_quest_array = single_quest_str.split("\n\n")
       # Remove file delimiter "mobius_quest_break\n\n"
@@ -430,25 +432,33 @@ class Game_Quests
       name = single_quest_array.shift
       # Initialize info array
       info_array = []
-      # Organize phase info into useable line lengths
-      for single_phase_str in single_quest_array
-        phase_line_array = []
-        # Split phase info into words
-        word_array = single_phase_str.split
-        temp_str = ""
-        for word in word_array
-          # Rejoin words together
-          temp_str.concat(word + " ")
-          # When line length is useable, push to phase_line_array
-          if temp_str.size >= 35
-            phase_line_array.push(temp_str.strip)
-            temp_str = ""
+      if ADVANCED_TEXT_MODE
+        # In advanced mode, we store the raw lines
+        # and manipulate them later
+        info_array = single_quest_array
+      else
+        # In regular mode, we try to automatically
+        # organize phase info into useable line lengths
+        for single_phase_str in single_quest_array
+          phase_line_array = []
+          # Split phase info into words
+          word_array = single_phase_str.split
+          temp_str = ""
+          for word in word_array
+            # Rejoin words together
+            temp_str.concat(word + " ")
+            # When line length is useable, push to phase_line_array
+            if temp_str.size >= 35
+              phase_line_array.push(temp_str.strip)
+              temp_str = ""
+            end
           end
+          # Push leftover string
+          phase_line_array.push(temp_str.strip) unless temp_str == ""
+          # Push phase info to info_array
+          #info_array.push(phase_line_array)
+          info_array.push(phase_line_array.join("\n"))
         end
-        # Push leftover string
-        phase_line_array.push(temp_str.strip) unless temp_str == ""
-        # Push phase info to info_array
-        info_array.push(phase_line_array)
       end
       # Push new Game_Quest object to $data_quests array
       $data_quests.push(Game_Quest.new(name, info_array))
@@ -521,12 +531,253 @@ class Game_Quests
 end
 
 #==============================================================================
+# ** Window_Base
+#==============================================================================
+class Window_Base < Window
+  #--------------------------------------------------------------------------
+  # * Process Control Codes
+  #--------------------------------------------------------------------------
+  def process_control_codes(text)
+    Console.log("process_control_codes")
+    # Change "\\" to forward slash literal
+    text.gsub!(/\\\\/) { "\\" }
+    # Replace \v with variable
+    # The loop here is necessary to allow for deep nesting, i.e.
+    # \n[\v[\v[0]]] - Use the value of variable 0 to find a variable
+    # to set which actor name to use. Why would you need this? Idk...
+    begin
+      last_text = text.clone
+      text.gsub!(/\\[Vv]\[([0-9]+)\]/) {
+        $game_variables[$1.to_i]
+      }
+    end until text == last_text
+    # Replace \n with actor name
+    text.gsub!(/\\[Nn]\[([0-9]+)\]/) {
+      $game_actors[$1.to_i] != nil ? $game_actors[$1.to_i].name : ""
+    }
+    # Replace \np with party actor name
+    text.gsub!(/\\[Nn][Pp]\[([0-9]+)\]/) {
+      $game_party.actors[$1.to_i - 1] != nil ? $game_party.actors[$1.to_i - 1].name : ""
+    }
+    # Replace \g with party gold
+    text.gsub!(/\\[Gg]/) {
+      $game_party.gold.to_s + "  " + $data_system.words.gold
+    }
+    # Replace \br with line break
+    text.gsub!(/\\[Bb][Rr]/) { "\n" }
+
+    # For a bunch of these next ones, we replace the code i.e. "\c"
+    # with a non-printing character to make future parsing easier
+
+    # Replace regular \c with \001
+    text.gsub!(/\\[Cc]\[([0-9]+)\]/) { "\001[#{$1}]" }
+
+    # Skipped \002 to preserve compatibility with default implementation of \g
+
+    # Replace Hex \c with \003
+    text.gsub!(/\\[Cc]\[#([0123456789abcdefABCDEF]+)\]/) { "\003[#{$1}]" }
+
+    # Bold
+    text.gsub!(/\\[Bb]/) { "\004" }
+    # Italics
+    text.gsub!(/\\[Ii]/) { "\005" }
+    # Font
+    text.gsub!(/\\[Ff][Oo][Nn][Tt]\[(.*?)\]/) { "\006[#{$1}]" }
+
+    # \007, \008, \009 reserved for future use
+
+    # Replace \icon[name] with \010[name]
+    text.gsub!(/\\[Ii][Cc][Oo][Nn]\[(.*?)\]/) {
+      "\010[#{$1}]"
+    }
+
+    # We can display any armor, item, skill, or weapon
+    # We can optionally include an icon for them
+    text.gsub!(/\\[Dd]([Aa]|[Ii]|[Ss]|[Ww])([Ii])?\[([0-9]+)\]/) {
+      index = $3.to_i # The number portion in square brackets
+      item = case $1.downcase # The second letter (a,i,s,w)
+        when "a" then $data_armors[index]
+        when "i" then $data_items[index]
+        when "s" then $data_skills[index]
+        when "w" then $data_weapons[index]
+      end
+      if $2 != "" # Did they include the "i" for icon?
+        next "\010[#{item.icon_name}]" + "  " + item.name
+      else
+        next item.name
+      end
+    }
+
+    # Data Words
+    text.gsub!(/\\[Ww][Gg][Dd]/) {
+      $data_system.words.gold
+    }
+    text.gsub!(/\\[Ww][Hh][Pp]/) {
+      $data_system.words.hp
+    }
+    text.gsub!(/\\[Ww][Ss][Pp]/) {
+      $data_system.words.sp
+    }
+    text.gsub!(/\\[Ww][Ss][Tt][Rr]/) {
+      $data_system.words.str
+    }
+    text.gsub!(/\\[Ww][Dd][Ee][Xx]/) {
+      $data_system.words.dex
+    }
+    text.gsub!(/\\[Ww][Aa][Gg][Ii]/) {
+      $data_system.words.agi
+    }
+    text.gsub!(/\\[Ww][Ii][Nn][Tt]/) {
+      $data_system.words.int
+    }
+    text.gsub!(/\\[Ww][Aa][Tt][Kk]/) {
+      $data_system.words.atk
+    }
+    text.gsub!(/\\[Ww][Pp][Dd][Ee][Ff]/) {
+      $data_system.words.pdef
+    }
+    text.gsub!(/\\[Ww][Mm][Dd][Ee][Ff]/) {
+      $data_system.words.mdef
+    }
+    text.gsub!(/\\[Ww][Ww][Pp][Nn]/) {
+      $data_system.words.weapon
+    }
+    text.gsub!(/\\[Ww][Aa][Rr][Mm]1/) {
+      $data_system.words.armor1
+    }
+    text.gsub!(/\\[Ww][Aa][Rr][Mm]2/) {
+      $data_system.words.armor2
+    }
+    text.gsub!(/\\[Ww][Aa][Rr][Mm]3/) {
+      $data_system.words.armor3
+    }
+    text.gsub!(/\\[Ww][Aa][Rr][Mm]4/) {
+      $data_system.words.armor4
+    }
+    text.gsub!(/\\[Ww][Aa]/) {
+      $data_system.words.attack
+    }
+    text.gsub!(/\\[Ww][Ss]/) {
+      $data_system.words.skill
+    }
+    text.gsub!(/\\[Ww][Gg]/) {
+      $data_system.words.guard
+    }
+    text.gsub!(/\\[Ww][Ii]/) {
+      $data_system.words.item
+    }
+    text.gsub!(/\\[Ww][Ee]/) {
+      $data_system.words.equip
+    }
+
+    return text
+  end
+  #--------------------------------------------------------------------------
+  # * Draw Processed Text
+  #--------------------------------------------------------------------------
+  def draw_processed_text(text, x = 0, y = 0)
+    console.log("draw processed text")
+    while (char = text.slice!(/./m)) != nil
+      console.log("x, y, char: #{x}, #{y}, #{char}")
+      x, y = draw_char(char, text, x, y)
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Draw Char
+  #--------------------------------------------------------------------------
+  def draw_char(char, text, x = 0, y = 0)
+    case char
+    when "\001" # handle default color
+      change_color(text)
+    when "\003" # handle hex color
+      change_color_hex(text)
+    when "\004" # handle bold
+      change_bold
+    when "\005" # handle italics
+      change_italics
+    when "\006" # handle font
+      change_font(text)
+    when "\010" # handle icon
+      x, y = draw_icon(text, x, y)
+    when "\n"   # handle newline
+      y += 1
+      x = 0
+    else
+      self.contents.draw_text(x, y * 22, 40, 22, char.to_s)
+      x += self.contents.text_size(char).width
+    end
+    return x, y
+  end
+  #--------------------------------------------------------------------------
+  # * Change Color
+  #--------------------------------------------------------------------------
+  def change_color(text)
+    text.sub!(/\[([0-9]+)\]/, "")
+    color = $1.to_i
+    if color >= 0 and color <= 7
+      self.contents.font.color = text_color(color)
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Change Color Hex
+  #--------------------------------------------------------------------------
+  def change_color_hex(text)
+    text.sub!(/\[([0123456789abcdefABCDEF]+)\]/, "")
+    hex_code = $1.to_s.downcase
+
+    red   = ("0x" + hex_code.slice(0..1)).hex
+    blue  = ("0x" + hex_code.slice(2..3)).hex
+    green = ("0x" + hex_code.slice(4..5)).hex
+
+    self.contents.font.color = Color.new(red, blue, green)
+  end
+  #--------------------------------------------------------------------------
+  # * Change Bold
+  #--------------------------------------------------------------------------
+  def change_bold
+    self.contents.font.bold = !self.contents.font.bold
+  end
+  #--------------------------------------------------------------------------
+  # * Change Italics
+  #--------------------------------------------------------------------------
+  def change_italics
+    self.contents.font.italic = !self.contents.font.italic
+  end
+  #--------------------------------------------------------------------------
+  # * Change Font
+  #--------------------------------------------------------------------------
+  def change_font(text)
+    text.sub!(/\[(.*?)\]/, "")
+    font = $1.to_s
+    if font == ""
+      self.contents.font.name = Font.default_name
+    else
+      self.contents.font.name = font
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Draw Icon
+  #--------------------------------------------------------------------------
+  def draw_icon(text, x, y)
+    text.sub!(/\[(.*?)\]/, "")
+    # draw the icon
+    icon = RPG::Cache.icon($1.to_s)
+    self.contents.blt(x, y * 22, icon, Rect.new(0, 0, 24, 24))
+    x += 24
+    return x, y
+  end
+end
+
+#==============================================================================
 # ** Window Quest Info
 #------------------------------------------------------------------------------
 #  This window lists the info for the quests
 #==============================================================================
-
 class Window_QuestInfo < Window_Selectable
+  #--------------------------------------------------------------------------
+  # * Configuration Binding
+  #--------------------------------------------------------------------------
+  include Mobius::Quests
   #--------------------------------------------------------------------------
   # * Object Initialization
   #--------------------------------------------------------------------------
@@ -535,12 +786,14 @@ class Window_QuestInfo < Window_Selectable
     self.active = false
     self.contents = Bitmap.new(width - 32, height - 32)
     self.index = -1
-    refresh([""])
+    refresh("")
   end
   #--------------------------------------------------------------------------
   # * Refresh
   #--------------------------------------------------------------------------
   def refresh(text_array)
+    Console.log("refresh")
+    Console.log(text_array)
     # Clear old contents
     if self.contents != nil
       self.contents.clear
@@ -550,10 +803,11 @@ class Window_QuestInfo < Window_Selectable
     # Break if text_array is nil
     return unless text_array
     # Draw info
-    for i in 0...text_array.size
-      line = text_array[i]
-      self.contents.draw_text(0, i * 22, 408, 22, line)
+    if ADVANCED_TEXT_MODE
+      text_array = process_control_codes(text_array)
     end
+    draw_processed_text(text_array)
+    # self.contents.draw_text(0, 0 * 22, 408, 22, text_array)
   end
 end
 
@@ -562,7 +816,6 @@ end
 #------------------------------------------------------------------------------
 #  This window lists all currently active/completed quests
 #==============================================================================
-
 class Window_QuestList < Window_Selectable 
   #--------------------------------------------------------------------------
   # * Object Initialization
@@ -641,7 +894,6 @@ end
 #------------------------------------------------------------------------------
 #  This class performs quest screen processing.
 #==============================================================================
-
 class Scene_Quest
   #--------------------------------------------------------------------------
   # * Configuration Binding
