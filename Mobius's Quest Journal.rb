@@ -1,8 +1,8 @@
 #===============================================================================
 # Mobius' Quest Journal
 # Author: Mobius XVI
-# Version: 2.3
-# Date: 28 MAY 2020
+# Version: 3.0
+# Date: 05 OCT 2024
 #===============================================================================
 #
 # Introduction:
@@ -18,6 +18,9 @@
 #
 #  - Visit the forums for detailed instructions as well as two video tutorials
 #    https://forums.rpgmakerweb.com/index.php?threads/mobiuss-quest-journal.19144/
+#
+#  - You can also reference the script's README:
+#    https://github.com/darmes/Mobius-Quest-Journal/blob/80153cd38de7b298f4728b6b50fa7b3df9276984/README.md
 #
 # Issues/Bugs/Possible Bugs:
 #
@@ -38,17 +41,22 @@
 #     around this limitation by adding a "starting" phase to it that doesn't 
 #     give anything away like "You're on a new adventure!".
 #
+#   - Q. Why is the text not arranged nicely?
+#   - A. Because it's really hard (lol). The script tries to do the best that
+#     it can but it can struggle to account for everything, especially if
+#     you're using custom fonts, icons, etc. You can help it out by adding
+#     manual line breaks wherever they're necessary.
+#
 #  Credits/Thanks:
 #    - Mobius XVI, author
 #    - Special thanks to Zeriab. I borrowed the name for two of my classes 
 #       from the Quest Book script, and overall I'd say it influenced my design.
 #    - KK20, for finding a fairly obscure bug in my code
+#    - Supergenio, for suggesting the control codes
 #
 #  License
-#    
-#    This script is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported license. 
-#    A human readable summary is available here: http://creativecommons.org/licenses/by-sa/3.0/deed.en_US
-#    The full license is availble here: http://creativecommons.org/licenses/by-sa/3.0/legalcode
+#
+#    This script is licensed using the MIT License. See the license file for more info.
 #    In addition, this script is only authorized to be posted to the forums on RPGMakerWeb.com.
 #    Further, if you do decide to use this script in a commercial product, 
 #    I'd ask that you let me know via a post here or a PM. Thanks.
