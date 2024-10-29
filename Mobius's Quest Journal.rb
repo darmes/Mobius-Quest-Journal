@@ -1,8 +1,8 @@
 #===============================================================================
 # Mobius' Quest Journal
 # Author: Mobius XVI
-# Version: 3.0
-# Date: 05 OCT 2024
+# Version: 3.1
+# Date: 29 OCT 2024
 #===============================================================================
 #
 # Introduction:
@@ -680,9 +680,9 @@ class Window_Base < Window
   # * Draw Processed Text
   #--------------------------------------------------------------------------
   def draw_processed_text(text, x = 0, y = 0, max_width = self.contents.width)
-    # When slicing text this way, you get an int rather than a string
-    # So be sure to convert it back using "chr" when needed
-    while (char = text.slice!(0)) != nil
+    # When slicing text this way, you get an string rather than an int
+    # This also avoids splitting two byte unicode chars into a single byte
+    while (char = text.slice!(/./m)) != nil
       x, y = draw_char(char, text, x, y, max_width)
     end
   end
@@ -691,25 +691,24 @@ class Window_Base < Window
   #--------------------------------------------------------------------------
   def draw_char(char, text, x, y, max_width)
     case char
-    when 1 # handle default color (\001)
+    when "\001" # handle default color
       change_color(text)
-    when 3 # handle hex color (\003)
+    when "\003" # handle hex color
       change_color_hex(text)
-    when 4 # handle bold (\004)
+    when "\004" # handle bold
       change_bold
-    when 5 # handle italics (\005)
+    when "\005" # handle italics
       change_italics
-    when 6 # handle font (\006)
+    when "\006" # handle font
       change_font(text)
-    when 7 # handle icon (\007)
+    when "\007" # handle icon
       x, y = draw_icon(text, x, y, max_width)
-    when 10 # handle newline (\n)
+    when "\n" # handle newline
       x, y = change_line(x, y)
     else
-      new_text = char.chr
-      new_width = self.contents.text_size(new_text).width
+      new_width = self.contents.text_size(char).width
       x, y = check_draw_length(x, y, new_width, max_width)
-      self.contents.draw_text(x, y * 22, new_width + 2, 22, new_text)
+      self.contents.draw_text(x, y * 22, new_width + 2, 22, char)
       x += new_width
     end
     return x, y
